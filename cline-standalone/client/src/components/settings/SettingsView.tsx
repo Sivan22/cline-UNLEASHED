@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAppContext } from '../../context/AppContext';
 import './SettingsView.css';
 
@@ -33,7 +33,16 @@ const SettingsView = () => {
         </button>
       </div>
 
-      <form className="settings-form" onSubmit={handleSubmit}>
+      <div className="settings-nav">
+        <ul>
+          <li className="active"><a href="#api-settings">API Settings</a></li>
+          <li><Link to="/settings/mcp">MCP Servers</Link></li>
+        </ul>
+      </div>
+
+      <form className="settings-form" onSubmit={handleSubmit} id="api-settings">
+        <h2>API Configuration</h2>
+        
         <div className="form-group">
           <label htmlFor="apiProvider">API Provider</label>
           <select

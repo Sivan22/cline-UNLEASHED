@@ -4,6 +4,8 @@ import path from 'path';
 import fs from 'fs/promises';
 import { spawn, ChildProcess } from 'child_process';
 import { parseAssistantMessage, AssistantMessageContent, ToolUse } from './assistant-message';
+import { McpHub, McpConfigManager } from './mcp';
+import { McpTool, McpResource, McpResourceTemplate } from '../types/mcp';
 
 export interface Message {
   id: string;
@@ -41,6 +43,10 @@ export class AgentService {
     onComplete?: () => void;
   } = {};
   
+  // MCP related properties
+  private mcpHub: McpHub;
+  private mcpConfigManager: McpConfigManager;
+  
   constructor(workingDirectory: string = process.cwd()) {
     // Initialize with default values, will be updated when client sets API key
     this.anthropic = new Anthropic({
@@ -52,6 +58,27 @@ export class AgentService {
       apiKey: 'dummy-key'
     };
     this.workingDirectory = workingDirectory;
+    
+    // Initialize MCP components
+    this.mcpConfigManager = new McpConfigManager(
+      path.join(process.cwd(), 'config', 'mcp-settings.json')
+    );
+    this.mcpHub = new McpHub();
+    
+    // Initialize MCP servers
+    this.initializeMcpServers();
+  }
+  
+  /**
+   * Initialize MCP servers from configuration
+   */
+  private async initializeMcpServers(): Promise<void> {
+    try {
+      const configs = await this.mcpConfigManager.loadConfig();
+      await this.mcpHub.startServers(configs);
+    } catch (error) {
+      console.error('Failed to initialize MCP servers:', error);
+    }
   }
   
   /**
@@ -209,6 +236,38 @@ export class AgentService {
    * Generate system prompt
    */
   private generateSystemPrompt(): string {
+    // Get all MCP tools and resources
+    const { tools, resources, resourceTemplates } = this.mcpHub.getAllToolsAndResources();
+    
+    // Build MCP tools section
+    let mcpToolsSection = '';
+    
+    if (tools.length > 0) {
+      mcpToolsSection += '\n\n# Connected MCP Servers\n\n';
+      
+      // Group tools by server
+      const serverTools: Record<string, McpTool[]> = {};
+      for (const { serverName, tool } of tools) {
+        if (!serverTools[serverName]) {
+          serverTools[serverName] = [];
+        }
+        serverTools[serverName].push(tool);
+      }
+      
+      // Format tools for each server
+      for (const [serverName, serverToolList] of Object.entries(serverTools)) {
+        mcpToolsSection += `## ${serverName}\n\n`;
+        
+        for (const tool of serverToolList) {
+          mcpToolsSection += `### ${tool.name}\n`;
+          if (tool.description) {
+            mcpToolsSection += `${tool.description}\n`;
+          }
+          mcpToolsSection += '\n';
+        }
+      }
+    }
+    
     const basePrompt = `You are Cline, a highly skilled software engineer with extensive knowledge in many programming languages, frameworks, design patterns, and best practices.
 
 You have access to a set of tools that are executed upon the user's approval. You can use one tool per message, and will receive the result of that tool use in the user's response. You use tools step-by-step to accomplish a given task, with each tool use informed by the result of the previous tool use.
@@ -261,6 +320,19 @@ Parameters:
 - path: (required) The path of the directory to list contents for
 - recursive: (optional) Whether to list files recursively.
 
+## use_mcp_tool
+Description: Request to use a tool provided by a connected MCP server. Each MCP server can provide multiple tools with different capabilities.
+Parameters:
+- server_name: (required) The name of the MCP server providing the tool
+- tool_name: (required) The name of the tool to execute
+- arguments: (required) A JSON object containing the tool's input parameters, following the tool's input schema
+
+## access_mcp_resource
+Description: Request to access a resource provided by a connected MCP server. Resources represent data sources that can be used as context.
+Parameters:
+- server_name: (required) The name of the MCP server providing the resource
+- uri: (required) The URI identifying the specific resource to access
+
 ## ask_followup_question
 Description: Ask the user a question to gather additional information needed to complete the task.
 Parameters:
@@ -272,6 +344,8 @@ Description: Present the result of your work to the user.
 Parameters:
 - result: (required) The result of the task
 - command: (optional) A CLI command to execute to show a live demo of the result to the user
+
+${mcpToolsSection}
 
 Your current working directory is: ${this.workingDirectory}`;
 
@@ -315,6 +389,35 @@ Your current working directory is: ${this.workingDirectory}`;
           toolUse.params.path as string,
           toolUse.params.diff as string
         );
+      
+      case 'use_mcp_tool': {
+        const serverName = toolUse.params.server_name as string;
+        const toolName = toolUse.params.tool_name as string;
+        const argsJson = toolUse.params.arguments as string;
+        
+        try {
+          // Parse arguments
+          const args = JSON.parse(argsJson);
+          
+          // Execute tool
+          const result = await this.mcpHub.executeTool(serverName, toolName, args);
+          return `Tool execution result: ${JSON.stringify(result, null, 2)}`;
+        } catch (error) {
+          return `Error executing MCP tool: ${error instanceof Error ? error.message : String(error)}`;
+        }
+      }
+      
+      case 'access_mcp_resource': {
+        const serverName = toolUse.params.server_name as string;
+        const uri = toolUse.params.uri as string;
+        
+        try {
+          const result = await this.mcpHub.accessResource(serverName, uri);
+          return `Resource content: ${JSON.stringify(result, null, 2)}`;
+        } catch (error) {
+          return `Error accessing MCP resource: ${error instanceof Error ? error.message : String(error)}`;
+        }
+      }
         
       default:
         return `Tool ${toolUse.name} is not implemented yet.`;

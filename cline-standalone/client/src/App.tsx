@@ -1,39 +1,34 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { io, Socket } from 'socket.io-client';
+import { Socket } from 'socket.io-client';
 import WelcomeView from './components/welcome/WelcomeView';
 import SettingsView from './components/settings/SettingsView';
+import McpSettings from './components/settings/McpSettings';
 import ChatView from './components/chat/ChatView';
 import { AppContextProvider } from './context/AppContext';
+import { socket } from './socket';
 import './App.css';
 
 function App() {
-  const [socket, setSocket] = useState<Socket | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Setup Socket.IO connection
-    const socketInstance = io('http://localhost:8080');
-    
-    socketInstance.on('connect', () => {
+    // Setup Socket.IO connection event listeners
+    socket.on('connect', () => {
       console.log('Connected to server');
       setConnectionError(null);
     });
     
-    socketInstance.on('connect_error', (error) => {
+    socket.on('connect_error', (error) => {
       console.error('Connection error:', error);
       setConnectionError('Failed to connect to server. Please make sure the server is running.');
     });
     
-    socketInstance.on('error', (error) => {
-      console.error('Socket error:', error);
-    });
-    
-    setSocket(socketInstance);
-    
     // Cleanup on unmount
     return () => {
-      socketInstance.disconnect();
+      // Remove listeners, but don't disconnect the socket as it's shared
+      socket.off('connect');
+      socket.off('connect_error');
     };
   }, []);
 
@@ -50,6 +45,7 @@ function App() {
           <Routes>
             <Route path="/" element={<WelcomeView />} />
             <Route path="/settings" element={<SettingsView />} />
+            <Route path="/settings/mcp" element={<McpSettings />} />
             <Route path="/chat" element={<ChatView />} />
           </Routes>
         </div>

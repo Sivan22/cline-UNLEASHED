@@ -8,6 +8,7 @@ import fs from 'fs/promises';
 import { v4 as uuidv4 } from 'uuid';
 import { spawn, ChildProcess } from 'child_process';
 import { AgentService } from './services/agent';
+import { McpConfigManager } from './services/mcp';
 
 const app = express();
 const server = http.createServer(app);
@@ -17,6 +18,19 @@ const io = new Server(server, {
     methods: ['GET', 'POST']
   }
 });
+
+// Initialize MCP config manager for handling server-level MCP operations
+const MCP_CONFIG_PATH = path.join(process.cwd(), 'config', 'mcp-settings.json');
+const mcpConfigManager = new McpConfigManager(MCP_CONFIG_PATH);
+
+// Create config directory if it doesn't exist
+(async () => {
+  try {
+    await fs.mkdir(path.dirname(MCP_CONFIG_PATH), { recursive: true });
+  } catch (error) {
+    console.error('Error creating config directory:', error);
+  }
+})();
 
 // Middleware
 app.use(cors());
@@ -237,6 +251,97 @@ io.on('connection', (socket: Socket) => {
     } catch (error: any) {
       console.error('Error setting working directory:', error);
       callback({ error: error.message || 'Error setting working directory' });
+    }
+  });
+  
+  // MCP related socket handlers
+  
+  // Get MCP server status
+  socket.on('get_mcp_status', async (callback) => {
+    try {
+      const client = clients.get(socket.id);
+      if (!client) throw new Error('Client not found');
+      
+      const servers = client.agentService['mcpHub'].getAllServers();
+      callback({ success: true, servers });
+    } catch (error: any) {
+      console.error('Error getting MCP status:', error);
+      callback({ success: false, error: error.message });
+    }
+  });
+  
+  // Get MCP configuration
+  socket.on('get_mcp_config', async (callback) => {
+    try {
+      const config = await mcpConfigManager.loadConfig();
+      callback({ success: true, config });
+    } catch (error: any) {
+      console.error('Error getting MCP config:', error);
+      callback({ success: false, error: error.message });
+    }
+  });
+  
+  // Save MCP configuration
+  socket.on('save_mcp_config', async ({ mcpServers }, callback) => {
+    try {
+      await mcpConfigManager.saveConfig(mcpServers);
+      
+      // Update all connected clients with the new configuration
+      for (const clientEntry of clients.values()) {
+        try {
+          // Access the private mcpHub instance on each agent to restart servers
+          const mcpHub = clientEntry.agentService['mcpHub'];
+          await mcpHub.startServers(mcpServers);
+        } catch (error) {
+          console.error('Error updating client MCP servers:', error);
+        }
+      }
+      
+      callback({ success: true });
+    } catch (error: any) {
+      console.error('Error saving MCP config:', error);
+      callback({ success: false, error: error.message });
+    }
+  });
+  
+  // Start or restart specific MCP server
+  socket.on('start_mcp_server', async ({ name }, callback) => {
+    try {
+      const client = clients.get(socket.id);
+      if (!client) throw new Error('Client not found');
+      
+      const configs = await mcpConfigManager.loadConfig();
+      const config = configs[name];
+      
+      if (!config) {
+        throw new Error(`MCP server ${name} not found in configuration`);
+      }
+      
+      // Access the private mcpHub instance to start the server
+      const mcpHub = client.agentService['mcpHub'];
+      await mcpHub.startServer(name, config);
+      
+      callback({ success: true });
+    } catch (error: any) {
+      console.error(`Error starting MCP server:`, error);
+      callback({ success: false, error: error.message });
+    }
+  });
+  
+  // Stop specific MCP server
+  socket.on('stop_mcp_server', async ({ name }, callback) => {
+    try {
+      const client = clients.get(socket.id);
+      if (!client) throw new Error('Client not found');
+      
+      // Access the private mcpHub instance to stop the server
+      const mcpHub = client.agentService['mcpHub'];
+      await mcpHub.stopServer(name);
+      
+      callback({ success: true });
+    } catch (error: any) {
+      console.error(`Error stopping MCP server:`, error);
+      callback({ success: false, error: error.message });
     }
   });
 });

@@ -126,3 +126,6 @@ While this standalone version preserves most of the core functionality of the Cl
 Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
+
+Apache 2.0 ©
+

@@ -1,14 +1,47 @@
 .settings-view {
-  padding: 2rem;
   max-width: 800px;
   margin: 0 auto;
+  padding: 20px;
 }
 
 .settings-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 2rem;
+  margin-bottom: 20px;
+}
+
+.settings-nav {
+  margin-bottom: 30px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.settings-nav ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  gap: 10px;
+}
+
+.settings-nav li {
+  padding: 10px 15px;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+}
+
+.settings-nav li.active {
+  border-bottom: 3px solid #007bff;
+}
+
+.settings-nav a {
+  text-decoration: none;
+  color: #333;
+  font-weight: 500;
+}
+
+.settings-nav li.active a {
+  color: #007bff;
 }
 
 .back-button {

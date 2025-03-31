@@ -1,8 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAppContext } from '../../context/AppContext';
+import MarkdownBlock from '../common/MarkdownBlock'; // Import MarkdownBlock
 import './ChatView.css';
 
-const ChatView = () => {
+// Add navigateTo prop type based on App.tsx
+interface ChatViewProps {
+  navigateTo: (view: 'welcome' | 'chat' | 'settings' | 'mcpSettings') => void;
+}
+
+const ChatView = ({ navigateTo }: ChatViewProps) => { // Add navigateTo prop
   const { messages, addMessage, isLoading, isExecutingTool } = useAppContext();
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -31,15 +37,19 @@ const ChatView = () => {
   };
 
   const renderMessageContent = (content: string | any[]) => {
+    // If content is a simple string, wrap it in MarkdownBlock
     if (typeof content === 'string') {
-      return <div className="message-text">{content}</div>;
+      return <MarkdownBlock markdown={content} />;
     }
 
+    // If content is an array of blocks
     return content.map((block, index) => {
       if (block.type === 'text') {
-        return <div key={index} className="message-text">{block.content}</div>;
+        // Use MarkdownBlock for text blocks
+        return <MarkdownBlock key={index} markdown={block.content} />;
       }
       if (block.type === 'tool_use') {
+        // Keep tool_use rendering as is for now
         return (
           <div key={index} className="message-tool-use">
             <div className="tool-name">{block.tool_name}</div>

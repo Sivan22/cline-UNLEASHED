@@ -173,9 +173,9 @@ export class AgentService {
               for (const block of newBlocks) {
                 if (block.type === 'text') {
                   if (this.callbacks.onText) {
-                    this.callbacks.onText(block.content, block.partial);
+                    this.callbacks.onText(block.content, block.partial ?? false);
                   }
-                } else if (block.type === 'tool_use' && !block.partial) {
+                } else if (block.type === 'tool_use' && block.partial === false) {
                   if (this.callbacks.onToolUse) {
                     this.callbacks.onToolUse(block);
                   }
@@ -366,11 +366,13 @@ Your current working directory is: ${this.workingDirectory}`;
           toolUse.params.content as string
         );
       
-      case 'list_files':
+      case 'list_files': {
+        const recursive: boolean = toolUse.params.recursive === 'true';
         return this.executeListFilesTool(
-          toolUse.params.path as string, 
-          toolUse.params.recursive === 'true'
+          toolUse.params.path as string,
+          recursive
         );
+      }
         
       case 'search_files':
         return this.executeSearchFilesTool(
@@ -449,7 +451,7 @@ Your current working directory is: ${this.workingDirectory}`;
     }
   }
   
-  private async executeListFilesTool(dirPath: string, recursive: boolean): Promise<string> {
+  private async executeListFilesTool(dirPath: string, recursive: boolean = false): Promise<string> {
     try {
       const absolutePath = path.resolve(this.workingDirectory, dirPath);
       const entries = await this.listFiles(absolutePath, recursive);

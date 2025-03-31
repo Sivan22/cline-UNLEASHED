@@ -1,8 +1,10 @@
-import { useNavigate } from 'react-router-dom';
 import './WelcomeView.css';
 
-const WelcomeView = () => {
-  const navigate = useNavigate();
+interface WelcomeViewProps {
+  navigateTo: (view: 'welcome' | 'chat' | 'settings' | 'mcpSettings') => void;
+}
+
+const WelcomeView = ({ navigateTo }: WelcomeViewProps) => {
 
   return (
     <div className="welcome-view">
@@ -16,14 +18,14 @@ const WelcomeView = () => {
         <div className="welcome-buttons">
           <button 
             className="welcome-button primary" 
-            onClick={() => navigate('/chat')}
+            onClick={() => navigateTo('chat')}
           >
             Start a New Task
           </button>
           
           <button 
             className="welcome-button" 
-            onClick={() => navigate('/settings')}
+            onClick={() => navigateTo('settings')}
           >
             Configure Settings
           </button>

@@ -13,12 +13,8 @@ export interface ContentBlock {
   tool_params?: Record<string, any>;
 }
 
-export interface ApiConfiguration {
-  apiProvider: string;
-  apiModelId: string;
-  apiKey: string;
-  [key: string]: any;
-}
+// Import and re-export ApiConfiguration from the shared definition
+export type { ApiConfiguration } from './shared/api';
 
 export interface TaskHistory {
   id: string;
